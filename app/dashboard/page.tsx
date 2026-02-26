@@ -3,9 +3,10 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { jobs, Job, getUniqueLocations, getUniqueModes, getUniqueExperiences, getUniqueSources } from "../data/jobs";
-import { JobCard, JobModal, FilterBar } from "../components/jobs";
+import { JobCard, JobModal, FilterBar, JobStatus } from "../components/jobs";
 import { EmptyState, Button } from "../components/design-system";
 import { calculateMatchScore, loadPreferences, hasPreferences, Preferences } from "../lib/matchScore";
+import { loadJobStatuses, saveJobStatus } from "../lib/jobStatus";
 
 /**
  * Dashboard Page
@@ -13,9 +14,15 @@ import { calculateMatchScore, loadPreferences, hasPreferences, Preferences } fro
  * Displays job cards with filtering, search, and match scoring capabilities.
  * Saved jobs are stored in localStorage.
  * Match scores are calculated based on user preferences.
+ * Job statuses are tracked: Not Applied, Applied, Rejected, Selected.
  */
 
 const SAVED_JOBS_KEY = "jnt_saved_jobs";
+
+interface Toast {
+  id: string;
+  message: string;
+}
 
 export default function DashboardPage() {
   const [savedJobIds, setSavedJobIds] = useState<string[]>([]);
@@ -23,16 +30,19 @@ export default function DashboardPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [preferences, setPreferences] = useState<Preferences | null>(null);
   const [showOnlyMatches, setShowOnlyMatches] = useState(false);
+  const [jobStatuses, setJobStatuses] = useState<Record<string, JobStatus>>({});
+  const [toasts, setToasts] = useState<Toast[]>([]);
   const [filters, setFilters] = useState({
     keyword: "",
     location: "",
     mode: "",
     experience: "",
     source: "",
+    status: "" as JobStatus | "",
     sort: "latest",
   });
 
-  // Load saved jobs and preferences from localStorage on mount
+  // Load saved jobs, preferences, and job statuses from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem(SAVED_JOBS_KEY);
     if (saved) {
@@ -44,12 +54,22 @@ export default function DashboardPage() {
     }
     
     setPreferences(loadPreferences());
+    setJobStatuses(loadJobStatuses());
   }, []);
 
   // Save to localStorage when savedJobIds changes
   useEffect(() => {
     localStorage.setItem(SAVED_JOBS_KEY, JSON.stringify(savedJobIds));
   }, [savedJobIds]);
+
+  const showToast = (message: string) => {
+    const id = Date.now().toString();
+    setToasts((prev) => [...prev, { id, message }]);
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3000);
+  };
 
   const handleFilterChange = (key: string, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -71,6 +91,15 @@ export default function DashboardPage() {
 
   const handleApply = (url: string) => {
     window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleStatusChange = (jobId: string, newStatus: JobStatus) => {
+    const job = jobs.find((j) => j.id === jobId);
+    if (job) {
+      saveJobStatus(jobId, newStatus, job.title, job.company);
+      setJobStatuses(loadJobStatuses());
+      showToast(`Status updated: ${newStatus}`);
+    }
   };
 
   const userHasPreferences = hasPreferences();
@@ -123,6 +152,14 @@ export default function DashboardPage() {
     // Source filter
     if (filters.source) {
       result = result.filter((job) => job.source === filters.source);
+    }
+
+    // Status filter (AND logic with all other filters)
+    if (filters.status) {
+      result = result.filter((job) => {
+        const jobStatus = jobStatuses[job.id] || "Not Applied";
+        return jobStatus === filters.status;
+      });
     }
 
     // Sort
@@ -224,6 +261,8 @@ export default function DashboardPage() {
                 onSave={handleSaveJob}
                 onApply={handleApply}
                 matchScore={job.matchScore}
+                status={jobStatuses[job.id] || "Not Applied"}
+                onStatusChange={handleStatusChange}
               />
             ))}
           </div>
@@ -238,6 +277,18 @@ export default function DashboardPage() {
         onApply={handleApply}
         isSaved={selectedJob ? savedJobIds.includes(selectedJob.id) : false}
       />
+
+      {/* Toast Notifications */}
+      <div className="fixed bottom-24 right-24 z-50 flex flex-col gap-12">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className="bg-[#111111] text-white px-20 py-14 rounded-[6px] shadow-lg text-sm font-medium animate-in slide-in-from-bottom-2"
+          >
+            {toast.message}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

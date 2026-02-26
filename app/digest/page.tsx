@@ -5,6 +5,7 @@ import Link from "next/link";
 import { jobs, Job } from "../data/jobs";
 import { Button, EmptyState } from "../components/design-system";
 import { calculateMatchScore, loadPreferences, hasPreferences, Preferences, getMatchScoreColor } from "../lib/matchScore";
+import { getRecentStatusUpdates, StatusHistoryEntry } from "../lib/jobStatus";
 
 /**
  * Digest Page
@@ -13,6 +14,7 @@ import { calculateMatchScore, loadPreferences, hasPreferences, Preferences, getM
  * - Top 10 jobs sorted by matchScore desc, postedDaysAgo asc
  * - Persists in localStorage per day
  * - Copy to clipboard and email draft actions
+ * - Recent Status Updates section
  */
 
 interface DigestJob extends Job {
@@ -99,18 +101,36 @@ function createMailtoLink(digest: DigestData): string {
   return `mailto:?subject=${subject}&body=${body}`;
 }
 
+const statusColors: Record<string, string> = {
+  "Applied": "text-[#2563EB]",
+  "Rejected": "text-[#DC2626]",
+  "Selected": "text-[#5A7D5A]",
+};
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function DigestPage() {
   const [digest, setDigest] = useState<DigestData | null>(null);
   const [preferences, setPreferences] = useState<Preferences | null>(null);
   const [hasPrefs, setHasPrefs] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [recentUpdates, setRecentUpdates] = useState<StatusHistoryEntry[]>([]);
 
-  // Load preferences and existing digest on mount
+  // Load preferences, existing digest, and recent status updates on mount
   useEffect(() => {
     const prefs = loadPreferences();
     setPreferences(prefs);
     setHasPrefs(hasPreferences());
+    setRecentUpdates(getRecentStatusUpdates());
 
     // Check for existing digest today
     const todayKey = getTodayKey();
@@ -303,6 +323,37 @@ export default function DigestPage() {
             <a href={createMailtoLink(digest)}>
               <Button variant="primary">Create Email Draft</Button>
             </a>
+          </div>
+        )}
+
+        {/* Recent Status Updates Section */}
+        {recentUpdates.length > 0 && (
+          <div className="mt-64">
+            <h2 className="font-serif text-xl text-[#111111] mb-24">
+              Recent Status Updates
+            </h2>
+            <div className="bg-white border border-[#D4D2CC] rounded-[6px] overflow-hidden">
+              <div className="divide-y divide-[#E8E6E1]">
+                {recentUpdates.map((update) => (
+                  <div key={`${update.jobId}-${update.changedAt}`} className="px-24 py-16 flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-base font-medium text-[#111111] truncate">
+                        {update.jobTitle}
+                      </h4>
+                      <p className="text-sm text-[#6B6B6B]">{update.company}</p>
+                    </div>
+                    <div className="flex items-center gap-16 ml-16">
+                      <span className={`text-sm font-medium ${statusColors[update.status] || "text-[#6B6B6B]"}`}>
+                        {update.status}
+                      </span>
+                      <span className="text-xs text-[#9B9B9B] whitespace-nowrap">
+                        {formatDate(update.changedAt)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>

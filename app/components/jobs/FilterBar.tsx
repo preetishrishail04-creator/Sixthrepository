@@ -3,6 +3,8 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 
+import { JobStatus } from "./JobCard";
+
 /**
  * Filter Bar Component
  * 
@@ -12,6 +14,7 @@ import { cn } from "@/lib/utils";
  * - Mode dropdown
  * - Experience dropdown
  * - Source dropdown
+ * - Status dropdown (Not Applied, Applied, Rejected, Selected)
  * - Sort dropdown (Latest default, Match Score)
  * - Show only matches toggle
  */
@@ -23,6 +26,7 @@ interface FilterBarProps {
     mode: string;
     experience: string;
     source: string;
+    status: JobStatus | "";
     sort: string;
   };
   onFilterChange: (key: string, value: string) => void;
@@ -142,6 +146,24 @@ export function FilterBar({
                 {source}
               </option>
             ))}
+          </select>
+        </div>
+
+        {/* Status */}
+        <div>
+          <label className="block text-xs text-[#6B6B6B] uppercase tracking-wide mb-8">
+            Status
+          </label>
+          <select
+            value={filters.status}
+            onChange={(e) => onFilterChange("status", e.target.value)}
+            className={cn(selectClassName, "w-full")}
+          >
+            <option value="">All Statuses</option>
+            <option value="Not Applied">Not Applied</option>
+            <option value="Applied">Applied</option>
+            <option value="Rejected">Rejected</option>
+            <option value="Selected">Selected</option>
           </select>
         </div>
 

@@ -2,24 +2,33 @@
 
 import React, { useState, useEffect } from "react";
 import { jobs, Job } from "../data/jobs";
-import { JobCard, JobModal } from "../components/jobs";
+import { JobCard, JobModal, JobStatus } from "../components/jobs";
 import { EmptyState } from "../components/design-system";
+import { loadJobStatuses, saveJobStatus } from "../lib/jobStatus";
 
 /**
  * Saved Page
  * 
  * Displays saved jobs from localStorage.
  * Jobs persist after page reload.
+ * Job statuses are tracked and persisted.
  */
 
 const SAVED_JOBS_KEY = "jnt_saved_jobs";
+
+interface Toast {
+  id: string;
+  message: string;
+}
 
 export default function SavedPage() {
   const [savedJobIds, setSavedJobIds] = useState<string[]>([]);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [jobStatuses, setJobStatuses] = useState<Record<string, JobStatus>>({});
+  const [toasts, setToasts] = useState<Toast[]>([]);
 
-  // Load saved jobs from localStorage on mount
+  // Load saved jobs and job statuses from localStorage on mount
   useEffect(() => {
     const saved = localStorage.getItem(SAVED_JOBS_KEY);
     if (saved) {
@@ -29,12 +38,21 @@ export default function SavedPage() {
         setSavedJobIds([]);
       }
     }
+    setJobStatuses(loadJobStatuses());
   }, []);
 
   // Save to localStorage when savedJobIds changes
   useEffect(() => {
     localStorage.setItem(SAVED_JOBS_KEY, JSON.stringify(savedJobIds));
   }, [savedJobIds]);
+
+  const showToast = (message: string) => {
+    const id = Date.now().toString();
+    setToasts((prev) => [...prev, { id, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3000);
+  };
 
   const savedJobs = jobs.filter((job) => savedJobIds.includes(job.id));
 
@@ -54,6 +72,15 @@ export default function SavedPage() {
 
   const handleApply = (url: string) => {
     window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleStatusChange = (jobId: string, newStatus: JobStatus) => {
+    const job = jobs.find((j) => j.id === jobId);
+    if (job) {
+      saveJobStatus(jobId, newStatus, job.title, job.company);
+      setJobStatuses(loadJobStatuses());
+      showToast(`Status updated: ${newStatus}`);
+    }
   };
 
   return (
@@ -88,6 +115,8 @@ export default function SavedPage() {
                 onView={handleViewJob}
                 onSave={handleSaveJob}
                 onApply={handleApply}
+                status={jobStatuses[job.id] || "Not Applied"}
+                onStatusChange={handleStatusChange}
               />
             ))}
           </div>
@@ -102,6 +131,18 @@ export default function SavedPage() {
         onApply={handleApply}
         isSaved={selectedJob ? savedJobIds.includes(selectedJob.id) : false}
       />
+
+      {/* Toast Notifications */}
+      <div className="fixed bottom-24 right-24 z-50 flex flex-col gap-12">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className="bg-[#111111] text-white px-20 py-14 rounded-[6px] shadow-lg text-sm font-medium animate-in slide-in-from-bottom-2"
+          >
+            {toast.message}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

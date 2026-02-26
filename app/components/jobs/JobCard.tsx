@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Job } from "@/app/data/jobs";
 import { Button } from "../design-system";
 import { cn } from "@/lib/utils";
@@ -11,8 +11,11 @@ import { getMatchScoreColor } from "@/app/lib/matchScore";
  * 
  * Displays job information with View, Save, and Apply buttons.
  * Shows match score badge when provided.
+ * Includes status tracking: Not Applied, Applied, Rejected, Selected.
  * Follows design system: off-white background, deep red accent, subtle borders.
  */
+
+export type JobStatus = "Not Applied" | "Applied" | "Rejected" | "Selected";
 
 interface JobCardProps {
   job: Job;
@@ -21,6 +24,8 @@ interface JobCardProps {
   onSave: (jobId: string) => void;
   onApply: (url: string) => void;
   matchScore?: number;
+  status?: JobStatus;
+  onStatusChange?: (jobId: string, status: JobStatus) => void;
 }
 
 const sourceColors = {
@@ -29,11 +34,50 @@ const sourceColors = {
   Indeed: "bg-[#2557A7] bg-opacity-10 text-[#2557A7]",
 };
 
-export function JobCard({ job, isSaved, onView, onSave, onApply, matchScore }: JobCardProps) {
+const statusColors: Record<JobStatus, string> = {
+  "Not Applied": "bg-[#E8E6E1] text-[#6B6B6B]",
+  "Applied": "bg-[#2563EB] bg-opacity-10 text-[#2563EB]",
+  "Rejected": "bg-[#DC2626] bg-opacity-10 text-[#DC2626]",
+  "Selected": "bg-[#5A7D5A] bg-opacity-15 text-[#5A7D5A]",
+};
+
+const statusOptions: JobStatus[] = ["Not Applied", "Applied", "Rejected", "Selected"];
+
+export function JobCard({ 
+  job, 
+  isSaved, 
+  onView, 
+  onSave, 
+  onApply, 
+  matchScore,
+  status = "Not Applied",
+  onStatusChange,
+}: JobCardProps) {
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   const formatPostedTime = (days: number) => {
     if (days === 0) return "Today";
     if (days === 1) return "1 day ago";
     return `${days} days ago`;
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowStatusDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleStatusSelect = (newStatus: JobStatus) => {
+    if (onStatusChange && newStatus !== status) {
+      onStatusChange(job.id, newStatus);
+    }
+    setShowStatusDropdown(false);
   };
 
   return (
@@ -80,6 +124,46 @@ export function JobCard({ job, isSaved, onView, onSave, onApply, matchScore }: J
             +{job.skills.length - 3} more
           </span>
         )}
+      </div>
+
+      {/* Status Selector */}
+      <div className="mb-24" ref={dropdownRef}>
+        <div className="relative inline-block">
+          <button
+            onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+            className={cn(
+              "flex items-center gap-8 px-16 py-10 text-sm font-medium rounded-[6px] transition-all duration-150",
+              statusColors[status],
+              "hover:opacity-80"
+            )}
+          >
+            {status}
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M2 4L6 8L10 4" />
+            </svg>
+          </button>
+
+          {showStatusDropdown && (
+            <div className="absolute top-full left-0 mt-8 bg-white border border-[#D4D2CC] rounded-[6px] shadow-sm z-10 min-w-[140px]">
+              {statusOptions.map((option) => (
+                <button
+                  key={option}
+                  onClick={() => handleStatusSelect(option)}
+                  className={cn(
+                    "w-full text-left px-16 py-10 text-sm transition-colors duration-150",
+                    option === status 
+                      ? "bg-[#F7F6F3] font-medium" 
+                      : "hover:bg-[#F7F6F3]",
+                    "first:rounded-t-[6px] last:rounded-b-[6px]"
+                  )}
+                >
+                  <span className={cn("inline-block w-8 h-8 rounded-full mr-8", statusColors[option].split(" ")[0])} />
+                  {option}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Footer: Source, Posted Time, Actions */}
